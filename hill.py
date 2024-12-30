@@ -60,7 +60,7 @@ def hill_climbing(cities, max_distance, max_iterations):
 if __name__ == "__main__":
     start_time = time.time()
 
-    FILE_PATH = "data_5.csv"  
+    FILE_PATH = "data/data_100.csv"  
     MAX_DISTANCE = 90
     MAX_ITERATIONS = 1000
 
