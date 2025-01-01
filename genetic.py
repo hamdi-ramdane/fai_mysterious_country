@@ -29,6 +29,14 @@ def is_valid_cycle(individual, cities, max_distance):
             return False
     return True
 
+def calculate_fitness(population, cities, max_distance):
+    fitness = [
+        1 / (calculate_distance(ind, cities) + 1e-6)
+        if is_valid_cycle(ind, cities, max_distance) else 0
+        for ind in population
+    ]
+    return fitness
+
 # Step 3: Genetic Algorithm
 def initialize_population(cities, population_size):
     num_cities = len(cities)
@@ -66,21 +74,13 @@ def mutate(individual, mutation_rate):
 
 def genetic_algorithm(cities, max_distance, population_size, generations, mutation_rate):
     population = initialize_population(cities, population_size)
-    fitness = [
-        1 / (calculate_distance(ind, cities) + 1e-6)
-        if is_valid_cycle(ind, cities, max_distance) else 0
-        for ind in population
-    ]
+    fitness = calculate_fitness(population, cities, max_distance)
 
     for generation in range(generations):
         # Regenerate population if all individuals are invalid
         if all(f == 0 for f in fitness):
             population = initialize_population(cities, population_size)
-            fitness = [
-                1 / (calculate_distance(ind, cities) + 1e-6)
-                if is_valid_cycle(ind, cities, max_distance) else 0
-                for ind in population
-            ]
+            fitness = calculate_fitness(population, cities, max_distance)
             continue  # Skip the current generation loop after reinitialization
 
         new_population = []
@@ -99,11 +99,7 @@ def genetic_algorithm(cities, max_distance, population_size, generations, mutati
                 new_population.append(child)
 
         population = new_population
-        fitness = [
-            1 / (calculate_distance(ind, cities) + 1e-6)
-            if is_valid_cycle(ind, cities, max_distance) else 0
-            for ind in population
-        ]
+        fitness = calculate_fitness(population, cities, max_distance)
 
         # Log progress
         if generation % 100 == 0:
@@ -130,9 +126,9 @@ if __name__ == "__main__":
     print("Best Path:", best_path)
     print("Best Distance:", best_distance)
 
-
     end_time = time.time()
     execution_time = end_time - start_time
     print(f"Execution time: {execution_time:.4f} seconds")
+
 
 

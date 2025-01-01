@@ -1,8 +1,9 @@
+
 import random
 import math
 import time
 
-# Step 1: Read cities from a file
+# Read cities from a file
 def read_cities(file_path):
     cities = []
     with open(file_path, 'r') as file:
@@ -11,141 +12,97 @@ def read_cities(file_path):
             cities.append((city_id, (x, y)))
     return cities
 
-# Step 2: Utility functions
+# Calculate distance between cities
 def calculate_distance(individual, cities):
-    distance = 0
-    for i in range(len(individual)):
-        city1 = cities[individual[i]][1]
-        city2 = cities[individual[(i + 1) % len(individual)]][1]
-        distance += math.sqrt((city1[0] - city2[0]) ** 2 + (city1[1] - city2[1]) ** 2)
-    return distance
+    return sum(math.sqrt((cities[individual[i]][1][0] - cities[individual[(i + 1) % len(individual)]][1][0])**2 +
+                         (cities[individual[i]][1][1] - cities[individual[(i + 1) % len(individual)]][1][1])**2)
+               for i in range(len(individual)))
 
+# Validate if the cycle is valid
 def is_valid_cycle(individual, cities, max_distance):
-    for i in range(len(individual)):
-        city1 = cities[individual[i]][1]
-        city2 = cities[individual[(i + 1) % len(individual)]][1]
-        distance = math.sqrt((city1[0] - city2[0]) ** 2 + (city1[1] - city2[1]) ** 2)
-        if distance > max_distance:
-            return False
-    return True
+    return all(math.sqrt((cities[individual[i]][1][0] - cities[individual[(i + 1) % len(individual)]][1][0])**2 +
+                         (cities[individual[i]][1][1] - cities[individual[(i + 1) % len(individual)]][1][1])**2) <= max_distance
+               for i in range(len(individual)))
 
-# Step 3: Hill Climbing
-def hill_climbing(cities, max_distance, max_iterations, initial_solution):
-    num_cities = len(cities)
-    current_solution = initial_solution[:]
-    current_distance = calculate_distance(current_solution, cities)
-
-    for iteration in range(max_iterations):
-        next_solution = current_solution[:]
-        i, j = random.sample(range(num_cities), 2)
-        next_solution[i], next_solution[j] = next_solution[j], next_solution[i]
-
-        if is_valid_cycle(next_solution, cities, max_distance):
-            next_distance = calculate_distance(next_solution, cities)
-            if next_distance < current_distance:
-                current_solution = next_solution
-                current_distance = next_distance
-
-        if iteration % 100 == 0:
-            print(f"Hill Climbing Iteration {iteration}: Current Distance = {current_distance}")
-
-    return current_solution, current_distance
-
-# Step 4: Genetic Algorithm
+# Initialize population
 def initialize_population(cities, population_size):
-    num_cities = len(cities)
     population = []
+    num_cities = len(cities)
     for _ in range(population_size):
         individual = list(range(num_cities))
         random.shuffle(individual)
         population.append(individual)
     return population
 
-def selection(population, fitness):
-    total_fitness = sum(fitness)
-    probabilities = [f / total_fitness for f in fitness]
-    selected_index = random.choices(range(len(population)), weights=probabilities, k=1)[0]
-    return population[selected_index]
-
-def crossover(parent1, parent2):
-    size = len(parent1)
-    start, end = sorted(random.sample(range(size), 2))
-    child = [-1] * size
-    child[start:end+1] = parent1[start:end+1]
-
-    current_index = (end + 1) % size
-    for gene in parent2:
-        if gene not in child:
-            child[current_index] = gene
-            current_index = (current_index + 1) % size
-    return child
-
-def mutate(individual, mutation_rate):
-    if random.random() < mutation_rate:
-        i, j = random.sample(range(len(individual)), 2)
-        individual[i], individual[j] = individual[j], individual[i]
-    return individual
-
-def genetic_algorithm(cities, max_distance, population_size, generations, mutation_rate, hill_climbing_frequency):
+# Selection, crossover, mutation, and hill climbing combined
+def genetic_hill_climbing(cities, max_distance, population_size, generations, mutation_rate):
     population = initialize_population(cities, population_size)
-    fitness = [
-        1 / (calculate_distance(ind, cities) + 1e-6)
-        if is_valid_cycle(ind, cities, max_distance) else 0
-        for ind in population
-    ]
+    best_individual = min(population, key=lambda ind: calculate_distance(ind, cities))
 
     for generation in range(generations):
-        if all(f == 0 for f in fitness):
+        # Calculate fitness and handle the case where all fitness values are zero
+        fitness = [1 / (calculate_distance(ind, cities) + 1e-6) if is_valid_cycle(ind, cities, max_distance) else 0
+                   for ind in population]
+        
+        # If all individuals are invalid, reinitialize the population
+        if sum(fitness) == 0:
             population = initialize_population(cities, population_size)
-            fitness = [
-                1 / (calculate_distance(ind, cities) + 1e-6)
-                if is_valid_cycle(ind, cities, max_distance) else 0
-                for ind in population
-            ]
             continue
 
-        new_population = []
-        best_individual = max(population, key=lambda ind: fitness[population.index(ind)])
-        new_population.append(best_individual)
+        # Proceed with the genetic algorithm process
+        new_population = [best_individual]
 
         while len(new_population) < population_size:
-            parent1 = selection(population, fitness)
-            parent2 = selection(population, fitness)
-            child = crossover(parent1, parent2)
-            child = mutate(child, mutation_rate)
+            parent1 = random.choices(population, weights=fitness, k=1)[0]
+            parent2 = random.choices(population, weights=fitness, k=1)[0]
+            start, end = sorted(random.sample(range(len(cities)), 2))
+            child = [-1] * len(cities)
+            child[start:end+1] = parent1[start:end+1]
+            current_index = (end + 1) % len(cities)
+            for gene in parent2:
+                if gene not in child:
+                    child[current_index] = gene
+                    current_index = (current_index + 1) % len(cities)
+            if random.random() < mutation_rate:
+                i, j = random.sample(range(len(cities)), 2)
+                child[i], child[j] = child[j], child[i]
 
             if is_valid_cycle(child, cities, max_distance):
                 new_population.append(child)
 
         population = new_population
-        fitness = [
-            1 / (calculate_distance(ind, cities) + 1e-6)
-            if is_valid_cycle(ind, cities, max_distance) else 0
-            for ind in population
-        ]
+        best_individual = min(population, key=lambda ind: calculate_distance(ind, cities))
 
-        if generation % hill_climbing_frequency == 0:
-            best_individual = max(population, key=lambda ind: fitness[population.index(ind)])
-            best_individual, best_distance = hill_climbing(cities, max_distance, 100, best_individual)
-            print(f"Generation {generation}: Best Distance = {best_distance}")
+        # Hill climbing step: Local optimization for the best individual
+        for i in range(100):  # Local search
+            next_solution = best_individual[:]
+            i, j = random.sample(range(len(cities)), 2)
+            next_solution[i], next_solution[j] = next_solution[j], next_solution[i]
+            if is_valid_cycle(next_solution, cities, max_distance):
+                next_distance = calculate_distance(next_solution, cities)
+                if next_distance < calculate_distance(best_individual, cities):
+                    best_individual = next_solution
 
-    best_individual = max(population, key=lambda ind: fitness[population.index(ind)])
-    best_distance = calculate_distance(best_individual, cities)
-    return best_individual, best_distance
+        if generation % 100 == 0:
+            print(f"Generation {generation}: Best Distance = {calculate_distance(best_individual, cities)}")
 
-# Step 5: Run the Hybrid Algorithm
+    return best_individual, calculate_distance(best_individual, cities)
+
+# Run the algorithm
 if __name__ == "__main__":
-    FILE_PATH = "data/data_100.csv"
+    start_time = time.time()
+
+    FILE_PATH = "data/data_100.csv"  
     MAX_DISTANCE = 90
     POPULATION_SIZE = 50
     GENERATIONS = 1000
     MUTATION_RATE = 0.05
-    HILL_CLIMBING_FREQUENCY = 10
 
     cities = read_cities(FILE_PATH)
-    best_path, best_distance = genetic_algorithm(
-        cities, MAX_DISTANCE, POPULATION_SIZE, GENERATIONS, MUTATION_RATE, HILL_CLIMBING_FREQUENCY
-    )
+    best_path, best_distance = genetic_hill_climbing(cities, MAX_DISTANCE, POPULATION_SIZE, GENERATIONS, MUTATION_RATE)
+    
     print("Best Path:", best_path)
     print("Best Distance:", best_distance)
 
+    end_time = time.time()
+    print(f"Execution time: {end_time - start_time:.4f} seconds")
